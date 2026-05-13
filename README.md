@@ -11,6 +11,7 @@ Basket backtesting workspace for signal-driven stock basket strategies.
 - `basket_backtest_open_to_close.py`: open-to-close variant
 - `us_data_downloader.py`: Yahoo Finance downloader for US stock and ETF daily price history
 - `us_options_data_puller.py`: Yahoo Finance option-chain downloader for supported US symbols
+- `rank_put_trades.py`: ranks put-selling candidates using live option chains plus historical forward-drop analysis
 - `inputs/signalStrategy/btst.csv`: signal input file
 - `inputs/prices/all_stocks_nse_prices.csv`: price input file
 - `outputs/`: generated backtest result CSVs
@@ -57,4 +58,10 @@ Download options chains for a supported US symbol:
 
 ```bash
 python3 us_options_data_puller.py
+```
+
+Rank put trades for a symbol using historical price behavior and live option quotes:
+
+```bash
+python3 rank_put_trades.py QQQ --data-dir . --output-dir outputs
 ```

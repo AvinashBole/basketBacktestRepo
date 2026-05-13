@@ -16,11 +16,15 @@ def fetch_option_expirations(symbol):
     return ticker, expirations
 
 
+def fetch_option_chain(symbol, expiration):
+    ticker = yf.Ticker(symbol)
+    return ticker.option_chain(expiration)
+
+
 def download_option_chain(symbol, expiration, output_dir="."):
     print(f"Downloading option chain for {symbol} expiry {expiration}...")
 
-    ticker = yf.Ticker(symbol)
-    chain = ticker.option_chain(expiration)
+    chain = fetch_option_chain(symbol, expiration)
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

@@ -1,9 +1,15 @@
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
+from pathlib import Path
+import re
 
 
-def download_us_symbol(symbol, start_date, end_date, interval="1d"):
+def sanitize_symbol(symbol):
+    return re.sub(r"[^A-Za-z0-9_-]", "", symbol.replace("=", ""))
+
+
+def download_us_symbol(symbol, start_date, end_date, interval="1d", output_dir="."):
     print(f"Downloading {symbol} from {start_date} to {end_date} ({interval})...")
 
     if interval != "1d":
@@ -22,11 +28,13 @@ def download_us_symbol(symbol, start_date, end_date, interval="1d"):
 
     start_str = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
     end_str = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
-    filename = f"{symbol.replace('=', '')}_{start_str}_to_{end_str}.csv"
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    filename = output_path / f"{sanitize_symbol(symbol)}_{start_str}_to_{end_str}.csv"
 
     data.to_csv(filename, index=False)
     print(f"Saved: {filename}")
-    return filename
+    return str(filename)
 
 
 if __name__ == "__main__":
