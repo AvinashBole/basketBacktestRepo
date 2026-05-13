@@ -1,0 +1,2 @@
+Probability_Target_Percent,Probability_StopLoss_Percent,Probability_MaxHold_Percent,Probability_AllStocksStopped_Percent,Probability_NoFutureData_Percent,Avg_Return_When_Target,Avg_Return_When_StopLoss,Avg_Return_When_MaxHold,Avg_Return_When_AllStocksStopped,Avg_Return_When_NoFutureData,Expected_Value_Per_Trade_Percent
+100.0,0.0,0.0,0.0,0.0,1.5809819381539576,0.0,0.0,0.0,0.0,1.5809819381539576

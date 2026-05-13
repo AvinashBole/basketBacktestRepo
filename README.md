@@ -65,3 +65,21 @@ Rank put trades for a symbol using historical price behavior and live option quo
 ```bash
 python3 rank_put_trades.py QQQ --data-dir . --output-dir outputs
 ```
+
+Run the scanner across multiple symbols and generate a combined leaderboard:
+
+```bash
+python3 meta_put_recommender.py --symbols QQQ META TSLA NVDA --data-dir . --output-dir meta_outputs
+```
+
+Generate a live candidate list from liquid movers with listed options:
+
+```bash
+python3 generate_option_symbol_candidates.py --output-file option_symbol_candidates.csv --top-n 10
+```
+
+Then feed that file into the meta recommender:
+
+```bash
+python3 meta_put_recommender.py --symbols-file option_symbol_candidates.csv --data-dir . --output-dir meta_outputs
+```
