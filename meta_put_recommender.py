@@ -22,6 +22,7 @@ def run_meta_scan(
     max_spread_pct: float,
     overall_top_n: int,
     avoid_earnings: bool = False,
+    max_per_sector: int = 20,
 ) -> pd.DataFrame:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -59,19 +60,19 @@ def run_meta_scan(
 
     combined = pd.concat(all_rows, ignore_index=True)
     
-    # Primary Sort: Survival, then Final Score (which accounts for earnings penalty)
+    # Primary Sort
     combined = combined.sort_values(
         ["historical_survival_pct", "final_score", "yield_pct"],
         ascending=[False, False, False],
     ).reset_index(drop=True)
 
-    # Sector Diversification: Pick top N but allow max 3 from same sector in the leaderboard
+    # Sector Diversification
     diversified_rows = []
     sector_counts = {}
     for _, row in combined.iterrows():
         sec = row.get("sector", "Unknown")
         count = sector_counts.get(sec, 0)
-        if count < 3: # Max 3 per sector in the top leaderboard
+        if count < max_per_sector:
             diversified_rows.append(row)
             sector_counts[sec] = count + 1
         if len(diversified_rows) >= overall_top_n:
@@ -84,7 +85,7 @@ def run_meta_scan(
     combined.to_csv(combined_file, index=False)
     top_overall.to_csv(top_file, index=False)
     print(f"\nSaved combined recommendations: {combined_file}")
-    print(f"Saved top overall (sector-diversified) recommendations: {top_file}")
+    print(f"Saved top overall recommendations: {top_file}")
 
     if failures:
         failure_df = pd.DataFrame(failures)
@@ -131,6 +132,7 @@ def main():
     parser.add_argument("--max-spread-pct", type=float, default=80.0, help="Maximum bid/ask spread as percent of credit")
     parser.add_argument("--overall-top-n", type=int, default=20, help="Top combined rows to keep in the summary file")
     parser.add_argument("--avoid-earnings", action="store_true", help="Filter out trades that expire after an earnings date")
+    parser.add_argument("--max-per-sector", type=int, default=3, help="Max entries per sector in the leaderboard")
     args = parser.parse_args()
 
     symbols = load_symbols_from_args(args.symbols, args.symbols_file)
@@ -149,6 +151,7 @@ def main():
         max_spread_pct=args.max_spread_pct,
         overall_top_n=args.overall_top_n,
         avoid_earnings=args.avoid_earnings,
+        max_per_sector=args.max_per_sector,
     )
 
     display_cols = [
@@ -157,14 +160,17 @@ def main():
         "expiration",
         "dte",
         "has_earnings",
+        "earnings_date",
         "strike",
         "otm_pct",
         "yield_pct",
         "historical_survival_pct",
         "iv",
+        "hv",
+        "vrp_ratio",
         "final_score",
     ]
-    print("\nTop overall recommendations (Diversified):")
+    print("\nTop overall recommendations:")
     print(top_overall[display_cols].to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
 
 

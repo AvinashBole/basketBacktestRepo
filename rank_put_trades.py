@@ -24,7 +24,6 @@ def find_price_history_file(symbol: str, search_dir: str) -> str | None:
 def load_or_download_price_history(symbol: str, data_dir: str, start_date: str) -> str:
     existing = find_price_history_file(symbol, data_dir)
     if existing:
-        print(f"Using existing price history: {existing}")
         return existing
 
     end_date = date.today().strftime("%Y-%m-%d")
@@ -73,7 +72,6 @@ def build_summary(symbol: str, cache: dict[int, np.ndarray], output_dir: str) ->
     summary = pd.DataFrame(rows)
     summary_file = Path(output_dir) / f"{sanitize_symbol(symbol)}_forward_drop_summary.csv"
     summary.to_csv(summary_file, index=False)
-    print(f"Saved historical summary: {summary_file}")
     return summary
 
 
@@ -107,8 +105,8 @@ def select_credit(row: pd.Series) -> float:
     return 0.0
 
 
-def fetch_enhanced_info(symbol: str) -> dict:
-    """Fetches Sector, next Earnings Date, and ATM IV."""
+def fetch_enhanced_info(symbol: str, data_dir: str, start_date: str) -> dict:
+    """Fetches Sector, Earnings, and calculates Current HV."""
     ticker = yf.Ticker(symbol)
     info = ticker.info
     
@@ -122,19 +120,20 @@ def fetch_enhanced_info(symbol: str) -> dict:
     except Exception:
         pass
 
-    current_iv = 0.0
+    current_hv = 0.0
     try:
-        expirations = ticker.options
-        if expirations:
-            chain = ticker.option_chain(expirations[0])
-            current_iv = chain.puts["impliedVolatility"].mean()
+        price_file = load_or_download_price_history(symbol, data_dir, start_date)
+        df = load_price_history(price_file)
+        # 21-day HV (approx 1 month)
+        df["returns"] = np.log(df["Close"] / df["Close"].shift(1))
+        current_hv = df["returns"].tail(21).std() * np.sqrt(252)
     except Exception:
         pass
 
     return {
         "sector": sector,
         "earnings_date": earnings_date,
-        "current_iv": current_iv,
+        "current_hv": current_hv,
         "beta": info.get("beta", 1.0)
     }
 
@@ -155,6 +154,12 @@ def rank_puts_for_symbol(
 ) -> pd.DataFrame:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     current_date = date.today()
+    
+    enhanced = fetch_enhanced_info(symbol, data_dir, start_date)
+    sector = enhanced["sector"]
+    earnings_date = enhanced["earnings_date"]
+    current_hv = enhanced["current_hv"]
+
     price_file = load_or_download_price_history(symbol, data_dir, start_date)
     prices = load_price_history(price_file)
     drop_cache = build_forward_drop_cache(prices)
@@ -162,12 +167,6 @@ def rank_puts_for_symbol(
 
     historical_spot = float(prices.iloc[-1]["Close"])
     spot = fetch_live_spot(symbol, historical_spot)
-    
-    # Enhanced Info
-    enhanced = fetch_enhanced_info(symbol)
-    sector = enhanced["sector"]
-    earnings_date = enhanced["earnings_date"]
-    current_iv = enhanced["current_iv"]
 
     _, expirations = fetch_option_expirations(symbol)
     if not expirations:
@@ -180,7 +179,6 @@ def rank_puts_for_symbol(
         if dte <= 0 or dte > max_dte:
             continue
 
-        # Earnings check
         has_earnings_before = False
         if earnings_date:
             if current_date < earnings_date <= expiry_date:
@@ -232,6 +230,10 @@ def rank_puts_for_symbol(
             if pd.notna(spread_pct) and spread_pct > max_spread_pct:
                 continue
 
+            iv = float(put.get("impliedVolatility", 0.0))
+            # Calculate IV/HV Ratio (VRP Score)
+            vrp_ratio = iv / current_hv if current_hv > 0 else 0.0
+
             rows.append(
                 {
                     "symbol": symbol,
@@ -250,7 +252,9 @@ def rank_puts_for_symbol(
                     "annualized_yield_pct": annualized_yield_pct,
                     "historical_survival_pct": survival,
                     "historical_breach_pct": breach,
-                    "iv": round(put.get("impliedVolatility", current_iv), 4),
+                    "iv": round(iv, 4),
+                    "hv": round(current_hv, 4),
+                    "vrp_ratio": round(vrp_ratio, 2),
                     "open_interest": int(put["openInterest"]),
                     "volume": int(put["volume"]),
                     "score": annualized_yield_pct * (survival / 100.0),
@@ -261,7 +265,6 @@ def rank_puts_for_symbol(
     if ranked.empty:
         raise ValueError("No qualifying put candidates found after filters.")
 
-    # Apply a penalty for earnings if not avoiding them
     ranked["final_score"] = ranked["score"]
     if "has_earnings" in ranked.columns:
         ranked.loc[ranked["has_earnings"], "final_score"] *= 0.5
@@ -276,8 +279,6 @@ def rank_puts_for_symbol(
     best_file = Path(output_dir) / f"{sanitize_symbol(symbol)}_put_trade_recommendations.csv"
     ranked.to_csv(ranked_file, index=False)
     best_by_dte.to_csv(best_file, index=False)
-    print(f"Saved full rankings: {ranked_file}")
-    print(f"Saved recommendations: {best_file}")
     return best_by_dte
 
 
@@ -318,16 +319,15 @@ def main():
         "symbol",
         "expiration",
         "dte",
-        "mapped_horizon",
         "strike",
         "otm_pct",
         "credit",
         "yield_pct",
-        "annualized_yield_pct",
         "historical_survival_pct",
-        "historical_breach_pct",
-        "open_interest",
-        "volume",
+        "iv",
+        "hv",
+        "vrp_ratio",
+        "earnings_date",
         "score",
     ]
     print("\nTop recommendations:")
