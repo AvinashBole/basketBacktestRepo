@@ -21,6 +21,7 @@ def run_meta_scan(
     max_otm_pct: float,
     max_spread_pct: float,
     overall_top_n: int,
+    avoid_earnings: bool = False,
 ) -> pd.DataFrame:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -44,6 +45,7 @@ def run_meta_scan(
                 min_credit=min_credit,
                 max_otm_pct=max_otm_pct,
                 max_spread_pct=max_spread_pct,
+                avoid_earnings=avoid_earnings,
             )
             recommendations = recommendations.copy()
             recommendations["symbol_output_dir"] = str(symbol_output_dir)
@@ -56,19 +58,33 @@ def run_meta_scan(
         raise ValueError("No successful symbol scans completed.")
 
     combined = pd.concat(all_rows, ignore_index=True)
+    
+    # Primary Sort: Survival, then Final Score (which accounts for earnings penalty)
     combined = combined.sort_values(
-        ["historical_survival_pct", "score", "yield_pct"],
+        ["historical_survival_pct", "final_score", "yield_pct"],
         ascending=[False, False, False],
     ).reset_index(drop=True)
 
-    top_overall = combined.head(overall_top_n).copy()
+    # Sector Diversification: Pick top N but allow max 3 from same sector in the leaderboard
+    diversified_rows = []
+    sector_counts = {}
+    for _, row in combined.iterrows():
+        sec = row.get("sector", "Unknown")
+        count = sector_counts.get(sec, 0)
+        if count < 3: # Max 3 per sector in the top leaderboard
+            diversified_rows.append(row)
+            sector_counts[sec] = count + 1
+        if len(diversified_rows) >= overall_top_n:
+            break
+    
+    top_overall = pd.DataFrame(diversified_rows)
 
     combined_file = output_path / "meta_put_recommendations_all.csv"
     top_file = output_path / "meta_put_recommendations_top.csv"
     combined.to_csv(combined_file, index=False)
     top_overall.to_csv(top_file, index=False)
     print(f"\nSaved combined recommendations: {combined_file}")
-    print(f"Saved top overall recommendations: {top_file}")
+    print(f"Saved top overall (sector-diversified) recommendations: {top_file}")
 
     if failures:
         failure_df = pd.DataFrame(failures)
@@ -114,6 +130,7 @@ def main():
     parser.add_argument("--max-otm-pct", type=float, default=30.0, help="Maximum strike distance OTM percent")
     parser.add_argument("--max-spread-pct", type=float, default=80.0, help="Maximum bid/ask spread as percent of credit")
     parser.add_argument("--overall-top-n", type=int, default=20, help="Top combined rows to keep in the summary file")
+    parser.add_argument("--avoid-earnings", action="store_true", help="Filter out trades that expire after an earnings date")
     args = parser.parse_args()
 
     symbols = load_symbols_from_args(args.symbols, args.symbols_file)
@@ -131,25 +148,23 @@ def main():
         max_otm_pct=args.max_otm_pct,
         max_spread_pct=args.max_spread_pct,
         overall_top_n=args.overall_top_n,
+        avoid_earnings=args.avoid_earnings,
     )
 
     display_cols = [
         "symbol",
+        "sector",
         "expiration",
         "dte",
-        "mapped_horizon",
+        "has_earnings",
         "strike",
         "otm_pct",
-        "credit",
         "yield_pct",
-        "annualized_yield_pct",
         "historical_survival_pct",
-        "historical_breach_pct",
-        "open_interest",
-        "volume",
-        "score",
+        "iv",
+        "final_score",
     ]
-    print("\nTop overall recommendations:")
+    print("\nTop overall recommendations (Diversified):")
     print(top_overall[display_cols].to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
 
 

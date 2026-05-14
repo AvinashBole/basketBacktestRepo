@@ -7,10 +7,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from scipy.stats import percentileofscore
 
 from us_data_downloader import download_us_symbol, sanitize_symbol
 from us_options_data_puller import fetch_option_chain, fetch_option_expirations
-
 
 HORIZONS = [1, 2, 3, 4, 5, 6, 7, 15, 30, 45, 60, 90]
 
@@ -107,6 +107,38 @@ def select_credit(row: pd.Series) -> float:
     return 0.0
 
 
+def fetch_enhanced_info(symbol: str) -> dict:
+    """Fetches Sector, next Earnings Date, and ATM IV."""
+    ticker = yf.Ticker(symbol)
+    info = ticker.info
+    
+    sector = info.get("sector", "Unknown")
+    
+    earnings_date = None
+    try:
+        cal = ticker.calendar
+        if "Earnings Date" in cal and len(cal["Earnings Date"]) > 0:
+            earnings_date = cal["Earnings Date"][0]
+    except Exception:
+        pass
+
+    current_iv = 0.0
+    try:
+        expirations = ticker.options
+        if expirations:
+            chain = ticker.option_chain(expirations[0])
+            current_iv = chain.puts["impliedVolatility"].mean()
+    except Exception:
+        pass
+
+    return {
+        "sector": sector,
+        "earnings_date": earnings_date,
+        "current_iv": current_iv,
+        "beta": info.get("beta", 1.0)
+    }
+
+
 def rank_puts_for_symbol(
     symbol: str,
     data_dir: str,
@@ -119,6 +151,7 @@ def rank_puts_for_symbol(
     min_credit: float,
     max_otm_pct: float,
     max_spread_pct: float,
+    avoid_earnings: bool = False,
 ) -> pd.DataFrame:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     current_date = date.today()
@@ -129,6 +162,12 @@ def rank_puts_for_symbol(
 
     historical_spot = float(prices.iloc[-1]["Close"])
     spot = fetch_live_spot(symbol, historical_spot)
+    
+    # Enhanced Info
+    enhanced = fetch_enhanced_info(symbol)
+    sector = enhanced["sector"]
+    earnings_date = enhanced["earnings_date"]
+    current_iv = enhanced["current_iv"]
 
     _, expirations = fetch_option_expirations(symbol)
     if not expirations:
@@ -139,6 +178,15 @@ def rank_puts_for_symbol(
         expiry_date = datetime.strptime(expiration, "%Y-%m-%d").date()
         dte = (expiry_date - current_date).days
         if dte <= 0 or dte > max_dte:
+            continue
+
+        # Earnings check
+        has_earnings_before = False
+        if earnings_date:
+            if current_date < earnings_date <= expiry_date:
+                has_earnings_before = True
+        
+        if avoid_earnings and has_earnings_before:
             continue
 
         horizon = nearest_horizon(dte)
@@ -187,11 +235,13 @@ def rank_puts_for_symbol(
             rows.append(
                 {
                     "symbol": symbol,
+                    "sector": sector,
                     "scan_date": current_date.isoformat(),
                     "spot": round(spot, 2),
-                    "historical_spot": round(historical_spot, 2),
                     "expiration": expiration,
                     "dte": dte,
+                    "has_earnings": has_earnings_before,
+                    "earnings_date": earnings_date.isoformat() if earnings_date else None,
                     "mapped_horizon": horizon,
                     "strike": strike,
                     "otm_pct": otm_pct,
@@ -200,11 +250,9 @@ def rank_puts_for_symbol(
                     "annualized_yield_pct": annualized_yield_pct,
                     "historical_survival_pct": survival,
                     "historical_breach_pct": breach,
+                    "iv": round(put.get("impliedVolatility", current_iv), 4),
                     "open_interest": int(put["openInterest"]),
                     "volume": int(put["volume"]),
-                    "bid": put["bid"],
-                    "ask": put["ask"],
-                    "spread_pct_of_credit": spread_pct,
                     "score": annualized_yield_pct * (survival / 100.0),
                 }
             )
@@ -213,8 +261,13 @@ def rank_puts_for_symbol(
     if ranked.empty:
         raise ValueError("No qualifying put candidates found after filters.")
 
+    # Apply a penalty for earnings if not avoiding them
+    ranked["final_score"] = ranked["score"]
+    if "has_earnings" in ranked.columns:
+        ranked.loc[ranked["has_earnings"], "final_score"] *= 0.5
+
     ranked = ranked.sort_values(
-        ["historical_survival_pct", "score", "yield_pct"],
+        ["historical_survival_pct", "final_score", "yield_pct"],
         ascending=[False, False, False],
     ).reset_index(drop=True)
 
@@ -243,6 +296,7 @@ def main():
     parser.add_argument("--min-credit", type=float, default=0.10, help="Minimum premium credit per share")
     parser.add_argument("--max-otm-pct", type=float, default=30.0, help="Maximum strike distance OTM percent")
     parser.add_argument("--max-spread-pct", type=float, default=80.0, help="Maximum bid/ask spread as percent of credit")
+    parser.add_argument("--avoid-earnings", action="store_true", help="Filter out trades that expire after an earnings date")
     args = parser.parse_args()
 
     recommendations = rank_puts_for_symbol(
@@ -257,6 +311,7 @@ def main():
         min_credit=args.min_credit,
         max_otm_pct=args.max_otm_pct,
         max_spread_pct=args.max_spread_pct,
+        avoid_earnings=args.avoid_earnings,
     )
 
     display_cols = [

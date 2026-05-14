@@ -66,11 +66,16 @@ Rank put trades for a symbol using historical price behavior and live option quo
 python3 rank_put_trades.py QQQ --data-dir . --output-dir outputs
 ```
 
-Run the scanner across multiple symbols and generate a combined leaderboard:
+Run the scanner across multiple symbols and generate a combined leaderboard (now with Sector Diversification and Earnings filters):
 
 ```bash
-python3 meta_put_recommender.py --symbols QQQ META TSLA NVDA --data-dir . --output-dir meta_outputs
+python3 meta_put_recommender.py --symbols QQQ META TSLA NVDA --data-dir . --output-dir meta_outputs --avoid-earnings
 ```
+
+### Enhanced Features
+- **Earnings Filter:** Use `--avoid-earnings` to filter out trades expiring after a binary event. If not filtered, these trades receive a 50% score penalty.
+- **Sector Diversification:** The meta-leaderboard automatically caps any single sector (e.g., Technology) to 3 entries to ensure portfolio variety.
+- **IV Tracking:** Captures Implied Volatility for each trade to help identify "high-fear" premium opportunities.
 
 Generate a live candidate list from liquid movers with listed options:
 
