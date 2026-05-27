@@ -1,0 +1,116 @@
+{
+    "rockets": [],
+    "entries": [
+        "ADI",
+        "EQIX",
+        "CSCO",
+        "HON",
+        "MU",
+        "INTC",
+        "BK",
+        "AMD",
+        "CAT",
+        "LRCX",
+        "TXN",
+        "ROST",
+        "QQQ",
+        "KLAC",
+        "ARM",
+        "SPY",
+        "MS",
+        "AMAT",
+        "GS",
+        "NXPI",
+        "FTNT",
+        "AAPL",
+        "SLB",
+        "FDX",
+        "ASML",
+        "C",
+        "MAR",
+        "BEN",
+        "CRWD",
+        "QCOM",
+        "AVGO",
+        "PLD",
+        "PANW",
+        "RIOT",
+        "ROKU",
+        "BKR",
+        "MCHP",
+        "SPG",
+        "JNJ",
+        "TJX",
+        "VZ",
+        "AEP",
+        "F",
+        "CDNS",
+        "LIN",
+        "GM",
+        "UNP",
+        "MET",
+        "USB",
+        "TGT",
+        "MRK",
+        "SCCO",
+        "JPM",
+        "LLY",
+        "DUK",
+        "SO",
+        "GILD",
+        "GD",
+        "NET",
+        "BAC",
+        "GE",
+        "TSLA",
+        "BLK",
+        "ABBV",
+        "EXC",
+        "AMGN",
+        "MMM",
+        "PFE",
+        "UPS"
+    ],
+    "top_candidates": [
+        {
+            "symbol": "ADI",
+            "alpha_score": 95.10783945946255
+        },
+        {
+            "symbol": "EQIX",
+            "alpha_score": 93.27110080804526
+        },
+        {
+            "symbol": "CSCO",
+            "alpha_score": 84.93508460605341
+        },
+        {
+            "symbol": "HON",
+            "alpha_score": 83.04734448030426
+        },
+        {
+            "symbol": "MU",
+            "alpha_score": 80.09328397156125
+        },
+        {
+            "symbol": "INTC",
+            "alpha_score": 80.01123887673675
+        },
+        {
+            "symbol": "BK",
+            "alpha_score": 79.29136854153265
+        },
+        {
+            "symbol": "AMD",
+            "alpha_score": 77.1300148080974
+        },
+        {
+            "symbol": "CAT",
+            "alpha_score": 76.71882915670005
+        },
+        {
+            "symbol": "LRCX",
+            "alpha_score": 76.03468263154654
+        }
+    ]
+}

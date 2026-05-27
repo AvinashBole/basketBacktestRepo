@@ -1,0 +1,29 @@
+{
+    "cash": 100000.0,
+    "positions": {},
+    "last_sync_date": null,
+    "history": [
+        {
+            "date": "2026-05-24",
+            "action": "BUY",
+            "symbol": "RELIANCE",
+            "price": 2500.0,
+            "qty": 10
+        },
+        {
+            "date": "2026-05-24",
+            "action": "BUY",
+            "symbol": "ABB",
+            "price": 8000.0,
+            "qty": 5
+        },
+        {
+            "date": "2026-05-25",
+            "action": "SELL",
+            "symbol": "RELIANCE",
+            "price": 2700.0,
+            "qty": 10,
+            "reason": "EMA10 Breach"
+        }
+    ]
+}
